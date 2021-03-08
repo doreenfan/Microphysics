@@ -139,9 +139,12 @@ burn_cell
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``small_dens``                        |                                                         | 1.e5               |
 +---------------------------------------+---------------------------------------------------------+--------------------+
-| ``tmax``                              |                                                         | 1.e-2              |
+| ``tmax``                              | the final time to integrate to                          | 1.e-2              |
 +---------------------------------------+---------------------------------------------------------+--------------------+
-| ``nsteps``                            |                                                         | 1000               |
+| ``tfirst``                            | first output time -- we will output in nsteps           | 0.0                |
+|                                       | logarithmically spaced steps between [tfirst, tmax]     |                    |
++---------------------------------------+---------------------------------------------------------+--------------------+
+| ``nsteps``                            | number of steps (logarithmically spaced)                | 100                |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``density``                           |                                                         | 1.d7               |
 +---------------------------------------+---------------------------------------------------------+--------------------+
@@ -341,19 +344,16 @@ integration
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | parameter                             | description                                             | default value      |
 +=======================================+=========================================================+====================+
-| ``do_constant_volume_burn``           | When evolving the temperature, should we assume a       | .false.            |
-|                                       | constant pressure (default) or a constant volume        |                    |
-|                                       | (do_constant_volume_burn = T)?                          |                    |
+| ``do_constant_volume_burn``           | When evolving the temperature, should we assume a       | .true.             |
+|                                       | constant volume (default) or a constant pressure        |                    |
+|                                       | (do_constant_volume_burn = F)?                          |                    |
 +---------------------------------------+---------------------------------------------------------+--------------------+
-| ``call_eos_in_rhs``                   | Do we call the EOS each time we enter the EOS?  This is | .false.            |
-|                                       | expensive, but more accurate.  Otherwise, we instead    |                    |
-|                                       | call the EOS at the start of the integration and freeze |                    |
-|                                       | the thermodynamics throughout the RHS evalulation.      |                    |
-|                                       | This only affects the temperature integration (which is |                    |
-|                                       | the input to the rate evaluation). In particular, since |                    |
-|                                       | we calculate the composition factors either way, this   |                    |
-|                                       | determines whether we're updating the thermodynamic     |                    |
-|                                       | derivatives and other quantities (cp and cv) as we go.  |                    |
+| ``call_eos_in_rhs``                   | Normally we update the temperature during a burn to be  | .true.             |
+|                                       | consistent with the current internal energy. This is    |                    |
+|                                       | done with an EOS call, which can be turned off if       |                    |
+|                                       | desired. This will freeze the temperature and specific  |                    |
+|                                       | heat to the values at the beginning of the burn, which  |                    |
+|                                       | is inaccurate but cheaper.                              |                    |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``dT_crit``                           | If we want to call the EOS in general, but don't want   | 1.0d20             |
 |                                       | to overdo it, we can set a fraction ``dT_crit`` such    |                    |
@@ -362,9 +362,6 @@ integration
 |                                       | this option, we will do a linear fit to c_v and c_p in  |                    |
 |                                       | between EOS calls. This will work regardless of         |                    |
 |                                       | call_eos_in_rhs.                                        |                    |
-+---------------------------------------+---------------------------------------------------------+--------------------+
-| ``integrate_temperature``             | Allow the temperature integration to be disabled by     | .true.             |
-|                                       | setting the RHS to zero.                                |                    |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``integrate_energy``                  | Allow the energy integration to be disabled by setting  | .true.             |
 |                                       | the RHS to zero.                                        |                    |
@@ -395,12 +392,6 @@ integration
 |                                       | tolerances, do we want to try again with a looser       |                    |
 |                                       | tolerance?                                              |                    |
 +---------------------------------------+---------------------------------------------------------+--------------------+
-| ``retry_burn_factor``                 | If we do retry a burn, by what factor should we loosen  | 1.25d0             |
-|                                       | the tolerance?                                          |                    |
-+---------------------------------------+---------------------------------------------------------+--------------------+
-| ``retry_burn_max_change``             | What is the maximum factor we can increase the original | 1.0d2              |
-|                                       | tolerances by?                                          |                    |
-+---------------------------------------+---------------------------------------------------------+--------------------+
 | ``abort_on_failure``                  | Should we abort the run when the burn fails?            | .true.             |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``renormalize_abundances``            | Whether to renormalize the mass fractions at each step  | .false.            |
@@ -417,12 +408,6 @@ integration
 |                                       | integration.                                            |                    |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``react_boost``                       | boost the reaction rates by a factor > 1                | -1.d0              |
-+---------------------------------------+---------------------------------------------------------+--------------------+
-| ``reactions_density_scale``           | density, temperature, and energy scaling factors        | 1.d0               |
-+---------------------------------------+---------------------------------------------------------+--------------------+
-| ``reactions_temperature_scale``       |                                                         | 1.d0               |
-+---------------------------------------+---------------------------------------------------------+--------------------+
-| ``reactions_energy_scale``            |                                                         | 1.d0               |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``ode_max_steps``                     | maximum number of timesteps for the integrator          | 150000             |
 +---------------------------------------+---------------------------------------------------------+--------------------+
@@ -612,9 +597,6 @@ rprox
 | ``rtol_enuc``                         |                                                         | 1.0e-8             |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``jacobian``                          | override so that the default is an analytical Jacobian  | 1                  |
-+---------------------------------------+---------------------------------------------------------+--------------------+
-| ``do_constant_volume_burn``           | we typically run this network for constant-pressure     | .false.            |
-|                                       | burns                                                   |                    |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 
 
@@ -994,9 +976,6 @@ triple_alpha_plus_cago
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``jacobian``                          | override so that the default is an analytical Jacobian  | 1                  |
 +---------------------------------------+---------------------------------------------------------+--------------------+
-| ``do_constant_volume_burn``           | we typically run this network for constant-pressure     | .false.            |
-|                                       | burns                                                   |                    |
-+---------------------------------------+---------------------------------------------------------+--------------------+
 
 
 
@@ -1021,9 +1000,6 @@ xrb_simple
 +---------------------------------------+---------------------------------------------------------+--------------------+
 | ``jacobian``                          | override so that the default is a numerical Jacobian;   | 2                  |
 |                                       | we don't yet have an analytical Jacobian                |                    |
-+---------------------------------------+---------------------------------------------------------+--------------------+
-| ``do_constant_volume_burn``           | we typically run this network for constant-pressure     | .false.            |
-|                                       | burns                                                   |                    |
 +---------------------------------------+---------------------------------------------------------+--------------------+
 
 
